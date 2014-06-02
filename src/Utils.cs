@@ -146,6 +146,8 @@ namespace ANPP
                 return;
             }
             float dt = (Time.time - time)/0.02f;
+            if (Math.Abs(dt) > 20)
+                dt = 1;
             Utils.factor = dt;
             if (vessel != null && vessel.parts != null)
                 spreadHeat();
