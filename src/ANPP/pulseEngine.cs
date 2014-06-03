@@ -16,9 +16,11 @@ namespace ANPP
         [KSPField]
         public float detonationDelay = 0.5f;
         [KSPField]
-        public float activationRatio = 4.5f;
+		public float activationRatio = 4.5f;
+		[KSPField]
+		public float drainRate = 0.2f;
         [KSPField]
-        public float drainRate = 0.2f;
+        public float efficiency = 150f;
 
 
         private float cooldown;
@@ -44,24 +46,28 @@ namespace ANPP
                 totalVesselMass += current.mass;
             }
 
-            currentUnit = fuelSupply.getUnit();
+            currentUnit = fuelSupply.getUnit(false);
             if(currentUnit!=null)
             {
-                float neededCharge = currentUnit.getEnergy()/activationRatio;
-                float rechargeAmount = -currentUnit.getEnergy() ;
+                float neededCharge = currentUnit.getEnergy()/(activationRatio * efficiency);
+				float rechargeAmount = -currentUnit.getEnergy() / efficiency;
                 float charge = getECInBank();
-                if(charge > neededCharge)
+				Debug.Log(charge+":"+neededCharge);
+                if(charge < neededCharge)
                 {
                     Debug.Log(charge + " " + neededCharge+" "+(charge - neededCharge));
                     return;
                 }
+				fuelSupply.getUnit(true);
                 consumeCharge(neededCharge);
                 RequestResource("ElectricCharge", rechargeAmount);
                 // add velocity
                 this.vessel.ChangeWorldVelocity(base.transform.up * (this.currentUnit.getImpulse() / totalVesselMass));
 
                 base.rigidbody.AddRelativeForce(new Vector3(0f, (this.currentUnit.getImpulse() / totalVesselMass), 0f), ForceMode.Force);
-                this.temperature += currentUnit.getEnergy()/50000;
+
+                if(this.Modules.Contains("HeatTransfer"))
+					this.temperature += currentUnit.getEnergy()/50000;
 
                 // FX: make explosion sound
                 this.explosionGroup.Power = 10;
@@ -106,6 +112,7 @@ namespace ANPP
 		// also when part comes in range of focussed ship (<2.5km) after onPartStart()
         protected override void onFlightStart()
         {
+			Debug.Log("test");
             foreach (Part p in children)
             {
                 if(p is ANPPPulseFuel && this.topNode.attachedPart == p)
@@ -116,7 +123,8 @@ namespace ANPP
             if (fuelSupply == null && parent is ANPPPulseFuel && this.topNode.attachedPart == parent)
             {
                 fuelSupply = parent as ANPPPulseFuel;
-            }
+			}
+			Debug.Log("test2");
             this.explosionGroup = base.findFxGroup("explosionGroup");
         }
 
@@ -126,7 +134,10 @@ namespace ANPP
         {
             this.fxGroups.Add(new FXGroup("explosionGroup"));
             base.onPartLoad();
+            ConfigNode node = new ConfigNode("MODULE");
+            node.AddValue("name", "EngineModule");
 
+            this.AddModule(node);
         }
 
         // called continously during flight scene if in active stage
@@ -150,7 +161,67 @@ namespace ANPP
                     prevTime = cooldown;
                 }
             }
-            
+
+        }
+
+    }
+
+    public class EngineModule : PartModule
+    {
+        bool isActive = false;
+        float time = 0;
+        [KSPAction("Engine Off")]
+        public void EngineOffAction(KSPActionParam param)
+        {
+			part.deactivate();
+            EngineOff();
+        }
+
+        [KSPEvent(guiActive = true, guiName = "Engine Off", active = true)]
+        public void EngineOff()
+		{
+			part.deactivate();
+            part.Events["EngineOff"].active = false;
+            part.Events["EngineOn"].active = true;
+        }
+
+        [KSPAction("Engine On")]
+        public void EngineOnAction(KSPActionParam param)
+        {
+			part.activate(0, vessel);
+            EngineOn();
+        }
+
+        [KSPEvent(guiActive = true, guiName = "Engine On")]
+        public void EngineOn()
+		{
+			part.activate(0, vessel);
+            part.Events["EngineOff"].active = true;
+            part.Events["EngineOn"].active = false;
+        }
+
+        public override void OnUpdate()
+        {
+       //*/    
+			if(Time.time - time > 1 && isActive)
+            {
+                time = Time.time;
+                isActive = false;
+            }
+            else
+            {
+				Events["EngineOff"].active = isActive;
+				Events["EngineOn"].active = !isActive;
+            }
+            //*/
+        }
+
+        public override void OnFixedUpdate()
+        {
+			isActive = true;
+			Events["EngineOff"].active = true;
+			Events["EngineOn"].active = false;
+
         }
     }
 }

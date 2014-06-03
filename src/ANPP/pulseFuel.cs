@@ -10,9 +10,9 @@ namespace ANPP
     class ANPPPulseFuel : Part
     {
         [KSPField(guiActive = true, guiName = "Type")]
-        public string bombTitle = "60GJPulseUnit";	// title that appears in pop-up menu for activating magazines
+        public string bombTitle = "30GJPulseUnit";	// title that appears in pop-up menu for activating magazines
         [KSPField]
-        public float bombEnergy = 60;
+        public float bombEnergy = 30;
 
         // Initial call in VAB when picking up part
         // Also called when part comes into range of focussed ship (<2.5km)
@@ -25,14 +25,16 @@ namespace ANPP
         // Called during initial part load at start of game
         protected override void onPartLoad()
         {
-            base.onPartLoad();
+
         }
 
-        public pulseUnit getUnit()
+        public pulseUnit getUnit(Boolean consume)
         {
             float num = RequestResource(bombTitle, 1);
             if (num < 1)
-                return null;
+				return null;
+			if(!consume)
+				RequestResource(bombTitle, -1);
             return pulseUnit.getPulseUnit(bombTitle, bombEnergy * 1000000, Utils.getResource(this, bombTitle).info.density);
         }
     }
